@@ -10,12 +10,13 @@ import com.microsoft.azure.documentdb.*;
 import com.microsoft.azure.documentdb.internal.HttpConstants;
 import com.microsoft.azure.spring.data.documentdb.DocumentDbFactory;
 import com.microsoft.azure.spring.data.documentdb.core.convert.MappingDocumentDbConverter;
+import com.microsoft.azure.spring.data.documentdb.core.query.Criteria;
+import com.microsoft.azure.spring.data.documentdb.core.query.CriteriaOperations;
 import com.microsoft.azure.spring.data.documentdb.core.query.Query;
-import com.microsoft.azure.spring.data.documentdb.repository.support.DocumentDbEntityInformation;
 import com.microsoft.azure.spring.data.documentdb.exception.DatabaseCreationException;
 import com.microsoft.azure.spring.data.documentdb.exception.DocumentDBAccessException;
 import com.microsoft.azure.spring.data.documentdb.exception.IllegalCollectionException;
-import org.apache.commons.lang3.StringUtils;
+import com.microsoft.azure.spring.data.documentdb.repository.support.DocumentDbEntityInformation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeansException;
@@ -403,38 +404,22 @@ public class DocumentDbTemplate implements DocumentDbOperations, ApplicationCont
         return collections.get(0);
     }
 
+    @SuppressWarnings("unchecked")
     private <T> SqlQuerySpec createSqlQuerySpec(Query query, Class<T> entityClass) {
         String queryStr = "SELECT * FROM ROOT r WHERE ";
 
         final SqlParameterCollection parameterCollection = new SqlParameterCollection();
+        final String idFieldName = new DocumentDbEntityInformation(entityClass).getId().getName();
+        final CriteriaOperations converter = new CriteriaOperations(idFieldName);
 
-        for (final Map.Entry<String, Object> entry : query.getCriteria().entrySet()) {
-            if (queryStr.contains("=@")) {
-                queryStr += " AND ";
-            }
+        queryStr += converter.convertToQueryLiteral(query.getCriteria());
 
-            String fieldName = entry.getKey();
-            if (isIdField(fieldName, entityClass)) {
-                fieldName = "id";
-            }
-
-            queryStr += "r." + fieldName + "=@" + entry.getKey();
-
-            parameterCollection.add(new SqlParameter("@" + entry.getKey(),
-                    mappingDocumentDbConverter.mapToDocumentDBValue(entry.getValue())));
+        for (final Map.Entry<String, Object> entry : converter.getParameters().entrySet()) {
+            final Object value = mappingDocumentDbConverter.mapToDocumentDBValue(entry.getValue());
+            parameterCollection.add(new SqlParameter(entry.getKey(), value));
         }
 
         return new SqlQuerySpec(queryStr, parameterCollection);
-    }
-
-    @SuppressWarnings("unchecked")
-    private static <T> boolean isIdField(String fieldName, Class<T> entityClass) {
-        if (StringUtils.isEmpty(fieldName)) {
-            return false;
-        }
-
-        final DocumentDbEntityInformation entityInfo = new DocumentDbEntityInformation(entityClass);
-        return fieldName.equals(entityInfo.getId().getName());
     }
 
     @Override
@@ -485,16 +470,14 @@ public class DocumentDbTemplate implements DocumentDbOperations, ApplicationCont
             return Optional.empty();
         }
 
-        final Map<String, Object> criteria = query.getCriteria();
-        // TODO (wepa) Only one partition key value is supported now
-        final Optional<String> matchedKey = criteria.keySet().stream()
-                .filter(key -> partitionKeyName.get().equals(key)).findFirst();
+        final CriteriaOperations operations = new CriteriaOperations();
+        final Criteria criteria = operations.findCriteriaByName(query.getCriteria(), partitionKeyName.get());
 
-        if (!matchedKey.isPresent()) {
+        if (criteria == null || criteria.getCriteriaValues().size() != 1) {
             return Optional.empty();
         }
 
-        return Optional.of(criteria.get(matchedKey.get()));
+        return Optional.of(criteria.getCriteriaValues().get(0));
     }
 
     @SuppressWarnings("unchecked")

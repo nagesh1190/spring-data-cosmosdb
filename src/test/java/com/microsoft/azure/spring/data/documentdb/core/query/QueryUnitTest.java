@@ -6,29 +6,19 @@
 package com.microsoft.azure.spring.data.documentdb.core.query;
 
 import com.microsoft.azure.spring.data.documentdb.TestConstants;
+import org.junit.Assert;
 import org.junit.Test;
 
-import java.util.ArrayList;
-
-import static org.assertj.core.api.Assertions.assertThat;
+import java.util.Arrays;
 
 public class QueryUnitTest {
 
     @Test
-    public void testAddCriteria() {
-        final Criteria criteria = new Criteria(new ArrayList<>(), TestConstants.CRITERIA_KEY);
-        criteria.is(TestConstants.CRITERIA_OBJECT);
+    public void testConstructor() {
+        final Criteria criteria = Criteria.getInstance(TestConstants.CRITERIA_KEY, CriteriaType.IS_EQUAL,
+                Arrays.asList(new Object[]{TestConstants.CRITERIA_OBJECT}));
+        final Query query = new Query(criteria);
 
-        final Query query = new Query().addCriteria(criteria);
-
-        assertThat(query.getCriteria().size()).isEqualTo(1);
-        assertThat(query.getCriteria().get(TestConstants.CRITERIA_KEY)).isEqualTo(TestConstants.CRITERIA_OBJECT);
-    }
-
-    @Test
-    public void testWhere() {
-        final Query query = new Query((Criteria.where(TestConstants.CRITERIA_KEY).is(TestConstants.CRITERIA_OBJECT)));
-        assertThat(query.getCriteria().size()).isEqualTo(1);
-        assertThat(query.getCriteria().get(TestConstants.CRITERIA_KEY)).isEqualTo(TestConstants.CRITERIA_OBJECT);
+        Assert.assertEquals(query.getCriteria(), criteria);
     }
 }

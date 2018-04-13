@@ -5,49 +5,49 @@
  */
 package com.microsoft.azure.spring.data.documentdb.core.query;
 
+import lombok.Getter;
+import org.springframework.lang.NonNull;
+
 import java.util.ArrayList;
 import java.util.List;
 
-public class Criteria implements CriteriaDefinition {
+@Getter
+public class Criteria {
 
-    private String key;
-    private Object value;
-    private List<Criteria> criteriaChain;
+    private CriteriaType type;
+    private String subject;
+    private List<Criteria> criteriaList;
+    private List<Object> criteriaValues;
 
-    public Criteria(String key) {
-        this.criteriaChain = new ArrayList<>();
-        this.criteriaChain.add(this);
-        this.key = key;
+    public Criteria(CriteriaType criteriaType) {
+        this.type = criteriaType;
+        this.criteriaList = new ArrayList<>();
     }
 
-    protected Criteria(List<Criteria> criteriaChain, String key) {
-        this.criteriaChain = criteriaChain;
-        this.criteriaChain.add(this);
-        this.key = key;
+    public static Criteria getInstance(@NonNull String subject, CriteriaType type, @NonNull List<Object> values) {
+        final Criteria criteria = new Criteria(type);
+
+        criteria.subject = subject;
+        criteria.criteriaValues = values;
+
+        return criteria;
     }
 
-    public Object getCriteriaObject() {
-        return value;
+    public static Criteria getAndInstance(@NonNull Criteria left, @NonNull Criteria right) {
+       final Criteria criteria = new Criteria(CriteriaType.AND);
+
+       criteria.criteriaList.add(left);
+       criteria.criteriaList.add(right);
+
+       return criteria;
     }
 
-    public String getKey() {
-        return key;
-    }
+    public static Criteria getOrInstance(@NonNull Criteria left, @NonNull Criteria right) {
+        final Criteria criteria = new Criteria(CriteriaType.OR);
 
-    public static Criteria where(String key) {
-        return new Criteria(key);
-    }
+        criteria.criteriaList.add(left);
+        criteria.criteriaList.add(right);
 
-    public Criteria is(Object o) {
-        this.value = o;
-        return this;
-    }
-
-    public Criteria and(String key) {
-        return new Criteria(this.criteriaChain, key);
-    }
-
-    public List<Criteria> getCriteriaChain() {
-        return criteriaChain;
+        return criteria;
     }
 }
